@@ -3,6 +3,7 @@ import argparse
 import subprocess as subps
 import os.path as osp
 import gc
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.append(osp.abspath(__file__ + "/../.."))
 from common import CasesHelper, ScoreReport, print_parsed_args
@@ -24,7 +25,7 @@ def score_one(cases_helper: CasesHelper,
     output = "[PASS]"
     weight = case.weight
     output_path, fp = cases_helper.open_case_report(case)
-    print(output_path, end=" ... ", flush=True)
+    # print(output_path, end=" ... ", flush=True)
 
     def fprint(*args):
         print(*args, file=fp)
@@ -164,7 +165,7 @@ def score_one(cases_helper: CasesHelper,
         except Error:
             pass
 
-    print(output)
+    # print(output)
     return ScoreReport.TestEntry(
         name=name,
         score=score,
@@ -180,10 +181,19 @@ def score_all(cases_helper: CasesHelper) -> ScoreReport:
 
     score_report = ScoreReport("task1")
 
-    for case in cases_helper.cases:
-        test_entry = score_one(cases_helper, case)
-        score_report.tests.append(test_entry)
-        gc.collect()
+    def score_case(case):
+        try:
+            return score_one(cases_helper, case)
+        except Exception:
+            return None
+
+    with ThreadPoolExecutor() as executor:
+        future_to_case = {executor.submit(score_case, case): case for case in cases_helper.cases}
+        for future in as_completed(future_to_case):
+            test_entry = future.result()
+            if test_entry is not None:
+                score_report.tests.append(test_entry)
+                gc.collect()
 
     score_report.leader_board.append(
         ScoreReport.LeaderBoardEntry(
@@ -259,6 +269,7 @@ if __name__ == "__main__":
             subps.run(
                 [
                     args.ctest_exe,
+                    "-j20",
                     "--test-dir",
                     args.bindir,
                     "-R",

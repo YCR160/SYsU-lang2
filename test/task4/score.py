@@ -5,6 +5,7 @@ import subprocess as subps
 import os.path as osp
 import gc
 import math
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.append(osp.abspath(__file__ + "/../.."))
 from common import CasesHelper, ScoreReport, print_parsed_args
@@ -54,7 +55,7 @@ def score_one(
     weight = case.weight
     output_path, fp = cases_helper.open_case_report(case)
     input_path, input_fp = cases_helper.open_case_input(case)
-    print(output_path, end=" ... ", flush=True)
+    # print(output_path, end=" ... ", flush=True)
 
     def fprint(*args):
         print(*args, file=fp)
@@ -94,6 +95,8 @@ def score_one(
                     "w",
                     encoding="utf-8",
                 ) as f:
+                    import os
+                    os.system(f'rm "{output_exe_path}" > /dev/null')
                     subps.run(
                         [
                             COMP_PATH,
@@ -202,7 +205,7 @@ def score_one(
         except Error:
             pass
 
-    print(output)
+    # print(output)
     return ScoreReport.TestEntry(
         name=name,
         score=score,
@@ -218,14 +221,19 @@ def score_all(cases_helper: CasesHelper) -> ScoreReport:
 
     score_report = ScoreReport("task4")
 
-    for case in cases_helper.cases:
-        test_entry = score_one(cases_helper, case)
-        if test_entry.weight == 0:
-            if test_entry.score != test_entry.max_score:
-                break
-        else:
-            score_report.tests.append(test_entry)
-        gc.collect()
+    def score_case(case):
+        try:
+            return score_one(cases_helper, case)
+        except Exception:
+            return None
+
+    with ThreadPoolExecutor() as executor:
+        future_to_case = {executor.submit(score_case, case): case for case in cases_helper.cases}
+        for future in as_completed(future_to_case):
+            test_entry = future.result()
+            if test_entry is not None:
+                score_report.tests.append(test_entry)
+                gc.collect()
 
     score_report.leader_board.append(
         ScoreReport.LeaderBoardEntry(
@@ -301,7 +309,7 @@ if __name__ == "__main__":
         print("运行 CTest 以得到结果...", end="", flush=True)
         with out, err:
             subps.run(
-                [args.ctest_exe, "--test-dir", args.bindir, "-R", "^task4/.*"],
+                [args.ctest_exe, "-j20", "--test-dir", args.bindir, "-R", "^task4/.*"],
                 stdout=out,
                 stderr=err,
             )
@@ -320,6 +328,9 @@ if __name__ == "__main__":
         txt_path, f = cases_helper.open_root_report()
         with f:
             score_report.dump_human_text(f)
+        import os
+        # os.system('sort score.txt -o "score.$(date +%s).txt"')
+        os.system('grep -F " 0.00/" score.txt > 0.txt')
         print("成绩单已保存：", cases_helper.of_bindir("score.txt"))
 
         json_path, f = cases_helper.open_autograder_json()

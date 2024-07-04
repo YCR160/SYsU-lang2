@@ -4,6 +4,7 @@ import argparse
 import subprocess as subps
 import os.path as osp
 import gc
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.append(osp.abspath(__file__ + "/../.."))
 from common import CasesHelper, ScoreReport, print_parsed_args
@@ -46,7 +47,7 @@ def score_one(
     weight = case.weight
     output_path, fp = cases_helper.open_case_report(case)
     input_path, input_fp = cases_helper.open_case_input(case)
-    print(output_path, end=" ... ", flush=True)
+    # print(output_path, end=" ... ", flush=True)
 
     def fprint(*args):
         print(*args, file=fp)
@@ -176,7 +177,7 @@ def score_one(
         except Error:
             pass
 
-    print(output)
+    # print(output)
     return ScoreReport.TestEntry(
         name=name,
         score=score,
@@ -192,13 +193,19 @@ def score_all(cases_helper: CasesHelper) -> ScoreReport:
 
     score_report = ScoreReport("task3")
 
-    for case in cases_helper.cases:
+    def score_case(case):
         try:
-            test_entry = score_one(cases_helper, case)
+            return score_one(cases_helper, case)
         except Exception:
-            continue
-        score_report.tests.append(test_entry)
-        gc.collect()
+            return None
+
+    with ThreadPoolExecutor() as executor:
+        future_to_case = {executor.submit(score_case, case): case for case in cases_helper.cases}
+        for future in as_completed(future_to_case):
+            test_entry = future.result()
+            if test_entry is not None:
+                score_report.tests.append(test_entry)
+                gc.collect()
 
     score_report.leader_board.append(
         ScoreReport.LeaderBoardEntry(
@@ -274,7 +281,7 @@ if __name__ == "__main__":
         print("运行 CTest 以得到结果...", end="", flush=True)
         with out, err:
             subps.run(
-                [args.ctest_exe, "--test-dir", args.bindir, "-R", "^task3/.*"],
+                [args.ctest_exe, "-j20", "--test-dir", args.bindir, "-R", "^task3/.*"],
                 stdout=out,
                 stderr=err,
             )
