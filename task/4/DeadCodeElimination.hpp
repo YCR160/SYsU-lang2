@@ -3,11 +3,13 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/PassManager.h>
 #include <llvm/Support/raw_ostream.h>
+#include "set"
+#include "map"
 
-class ConstantFolding : public llvm::PassInfoMixin<ConstantFolding>
+class DeadCodeElimination : public llvm::PassInfoMixin<DeadCodeElimination>
 {
   public:
-    explicit ConstantFolding(llvm::raw_ostream &out) : mOut(out)
+    explicit DeadCodeElimination(llvm::raw_ostream &out) : mOut(out)
     {
     }
 

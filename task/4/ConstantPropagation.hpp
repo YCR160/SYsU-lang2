@@ -3,11 +3,12 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/PassManager.h>
 #include <llvm/Support/raw_ostream.h>
+#include "set"
 
-class ConstantFolding : public llvm::PassInfoMixin<ConstantFolding>
+class ConstantPropagation : public llvm::PassInfoMixin<ConstantPropagation>
 {
   public:
-    explicit ConstantFolding(llvm::raw_ostream &out) : mOut(out)
+    explicit ConstantPropagation(llvm::raw_ostream &out) : mOut(out)
     {
     }
 

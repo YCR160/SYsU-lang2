@@ -3,11 +3,13 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/PassManager.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Transforms/Utils/Cloning.h>
+#include "map"
 
-class ConstantFolding : public llvm::PassInfoMixin<ConstantFolding>
+class FunctionInlining : public llvm::PassInfoMixin<FunctionInlining>
 {
   public:
-    explicit ConstantFolding(llvm::raw_ostream &out) : mOut(out)
+    explicit FunctionInlining(llvm::raw_ostream &out) : mOut(out)
     {
     }
 
